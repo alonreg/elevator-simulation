@@ -1,6 +1,6 @@
 # To add a new cell, type '# %%'
 # To add a new markdown cell, type '# %% [markdown]'
-# %%
+
 import pandas as pd  # package for some uses and maybe for visualization
 import random
 import numpy as np
@@ -9,8 +9,6 @@ from pylab import plot, show, bar
 import matplotlib.pyplot as plt
 plt.style.use("ggplot")
 
-
-# %%
 #####################################################
 ##### initiating arrival rates array, from csv ######
 #####################################################
@@ -47,7 +45,6 @@ np.random.seed(0)  # set the seed for the random numbers
 print(arrival_rates)
 
 
-# %%
 ########################################################
 ## Creating a dictionary with the range of each floor ##
 # the range ressembles the location in the rate array ##
@@ -60,11 +57,14 @@ floor_range[0] = 0  # ground floor
 
 print(floor_range)
 
-
-# %%
+#######################################################################################
+#######################################################################################
+#######################################################################################
 ########################
 ##### Event class ######
 ########################
+
+
 class Event():
     def __init__(self, time, eventType, passenger=-1):
         self.time = time  # event time
@@ -140,22 +140,28 @@ class Upper_floors_Elevator(Elevator):
 #########################
 ##       Floors        ##
 #########################
-class Floor(Elevator):
-    def __init__(self, floor_number):
-        self.floor_number = floor_number  # TODO is it needed?
+class Floor(object):
+    def __init__(self):
         self.L = 0  # holds the line for this floor
-        self.passengers_in_line = []
+        # notice: although there's 25 slots, every floor can reach only specific floors
+        # for each one of the 25 destinations
+        self.passengers_in_line = [[]] * 25
+    # add a new passenger to the line
 
-    def add_customer(self, customer):
-        self.passengers_in_line.append(customer)
+    def add_passenger(self, passenger):
+        self.passengers_in_line.append(passenger)
+    # return waiting passengers for this destination
 
-    def get_waiting_passengers(self, customer):
-
-        ##########################
-        ## returns current rate ##
-        ##########################
+    def get_waiting_passengers(self, destination):
+        return self.passengers_in_line[destination]
 
 
+#######################################################################################
+#######################################################################################
+#######################################################################################
+##########################
+## returns current rate ##
+##########################
 def get_current_rate_by_floor(start_floor, end_floor):
     # get current arrival rate according to start floor,
     # destination, (or section) and curr_time(which would be determined
@@ -221,6 +227,17 @@ def is_same_section(start_floor, end_floor):
         else:
             return False
 
+# returns the destination according to the prior passenger
+
+
+def get_destination(end_floor):
+    if end_floor == 0:
+        return 0
+    elif end_floor > 15:
+        return np.random.randint(16, 26)
+    else:
+        return np.random.randint(1, 16)
+
 #
 # def get_arrival_floor():
 #    rnd = np.random.rnd() # random number
@@ -231,7 +248,9 @@ def is_same_section(start_floor, end_floor):
 #   if rnd > rate_section_0 / total_arrival
 
 
-# %%
+#######################################################################################
+#######################################################################################
+#######################################################################################
 # initialize simulation
 print('Spaceship Elevator')
 curr_time = 0
@@ -250,13 +269,25 @@ elevator2 = Upper_floors_Elevator("Elevator3", 0)
 elevator3 = Upper_floors_Elevator("Elevator4", 0)
 # all elevators
 elevators = [elevator0, elevator1, elevator2, elevator3]
+##### Create the Floors ######
+floors = [Floor()] * 26
 
-first_event_time = np.random.exponential(60/7)  # time for the first event
+# initiate first arrival for each floor
+# each floor has a person traveling to one of the 3 floor-groups
+for floor_number in range(1, 26):
+    Event(np.random.exponential(get_current_rate_by_floor(
+        floor_number, 0)), "arriving")  # GROUP 1
+    Event(np.random.exponential(get_current_rate_by_floor(
+        floor_number, 15)), "arriving")  # GROUP 2
+    Event(np.random.exponential(get_current_rate_by_floor(
+        floor_number, 25)), "arriving")  # GROUP 3
 
-Event(first_event_time, "arriving")
+Event(np.random.exponential(get_current_rate_by_floor(0, 15)), "arriving")  # GROUP 2
+Event(np.random.exponential(get_current_rate_by_floor(0, 25)), "arriving")  # GROUP 3
 
-
-# %%
+#######################################################################################
+#######################################################################################
+#######################################################################################
 #####################
 ## simulation loop ##
 #####################
@@ -267,16 +298,9 @@ while curr_time < SIM_TIME:  # LOOP stops when time ends
     curr_time = event.time  # current event's time
 
     if event.eventType == "arriving":
-        # generate arrival for each floor
-        for start_floor in range(0, floors+1):
-            for end_floor in range(0, floors+1):
-                if start_floor == end_floor:
-                    continue  # avoid passanger from floor-to-same-floor
-                time_of_arrival = curr_time + \
-                    np.random.exponential(
-                        get_current_rate_by_floor(start_floor, end_floor))
-                new_passenger = Passenger(start_floor, end_floor, time_of_arrival, 1,
-                                          elevator=-1, is_traveler=is_same_section(start_floor, end_floor))
+        passenger_counter += 1
+        new_passenger = Passenger(arrival_time=curr_time, destination=get_destination(
+            event.passenger.destination), id=passenger_counter, start_floor=event.passenger.start_floor)
 
         if theater.available[movie] > 0:
             i += 1
