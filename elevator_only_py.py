@@ -1,11 +1,8 @@
-# To add a new cell, type '# %%'
-# To add a new markdown cell, type '# %% [markdown]'
-
-import pandas as pd  # package for some uses and maybe for visualization
 import random
+import pandas as pd  # package for some uses and maybe for visualization
 import numpy as np
 import heapq
-from pylab import plot, show, bar
+from matplotlib.pylab import plot, show, bar
 import matplotlib.pyplot as plt
 plt.style.use("ggplot")
 
@@ -15,7 +12,7 @@ plt.style.use("ggplot")
 df = pd.read_csv('arrival_rates.csv')
 df  # TODO: what is this?
 
-floors = 25
+floors_num = 25
 
 # TODO: Maxim - Please pull this data from the csv instead of manual input
 # this represents the total number of people incoming in every hour in every section
@@ -66,10 +63,11 @@ print(floor_range)
 
 
 class Event():
-    def __init__(self, time, eventType, passenger=-1):
+    def __init__(self, time, eventType, passenger=-1, elevator=-1):
         self.time = time  # event time
         self.eventType = eventType  # type of the event
         self.passenger = passenger
+        self.elevator = elevator
         heapq.heappush(P, self)  # add the event to the events list
 
     def __lt__(self, event2):
@@ -81,16 +79,18 @@ class Event():
 
 
 class Passenger(object):
-    def __init__(self, start_floor, destination, arrival_time, id, is_traveler):
+    def __init__(self, start_floor, destination, arrival_time):
         self.start_floor = start_floor
         self.current_floor = start_floor  # TODO is it needed?
-        self.is_traveler = is_traveler  # if passenger
+        self.is_traveler = (start_floor != 0 and destination != 0) and ((
+            start_floor > 15 and destination <= 15) or (start_floor <= 15 and destination > 15))
         self.current_leg = 1  # describes the current part of the journey. Either 1 or 2
         self.destination = destination
         self.elevator = -1  # waits before entering elevator
-        self.patience = 15
+        self.patience = 15*60  # 15 minutes patience
         self.arrival_time = arrival_time
-        self.id = id  # unique identifier
+        passenger_count += 1
+        self.id = passenger_count  # unique identifier
 
     # TODO CHANGE THAT LATER SO IT WILL USE THE floor_range DICTIONARY
     def is_elevator_exchange_needed(self):
@@ -107,39 +107,99 @@ class Passenger(object):
 
 
 class Elevator(object):
-    def __init__(self, name, starting_floor):
+    def __init__(self, name, starting_floor, top_elevator):
         self.name = name
-        self.current_floor = starting_floor
-        self.previous_floor = previous_floor
+        self.curr_floor = starting_floor
+        self.prev_floor = None
+        self.stop_time = 0  # last stop time
+        self.passengers = []
         self.passengers = []
         self.max_capacity = 15
         self.remaining_space = self.max_capacity - len(self.passengers)
+        self.direction = 1  # direction is up
+        self.is_top_elevator = top_elevator
+        self.is_broken = False  # elevator starts un-broken
+        self.last_broken_time = False  # time of last break
+        self.fix_time = False  # time of expected fix
+        self.floors_since_fix = 0  # Floors that passed since fix
 
+    # Gets the elevator destination. Checks if it was broken until arriving
+    def check_elevator_is_broken(self, dest):
+        if self.is_broken:
+            # was broken at curr_floor.
+            # check if fix is ready
 
-########################
-## Low-Elevator class ##
-########################
-class Lower_floors_Elevator(Elevator):
-    def __init__(self, name, current_floor):
-        Elevator.__init__(self, name, current_floor)
-        Elevator.floor_range = range(16)
+        else:
+            pass
 
-#########################
-## High-Elevator class ##
-#########################
+        return False
 
+    def switch_direction(self):
+        self.direction *= -1
 
-class Upper_floors_Elevator(Elevator):
-    def __init__(self, name, current_floor):
-        # TODO: perhaps use super()
-        Elevator.__init__(self, name, current_floor)
-        # TODO: changed from self. to elevator.
-        Elevator.floor_range = [0] + list(range(16, 26))
+    # TODO perhaps return if elevator has broken
+    def move_elevator(self, floor):
+        self.stop_time = curr_time
+        # if elevator hasn't been moven, return
+        if self.curr_floor == floor:
+            return
+        self.prev_floor = self.curr_floor
+        self.curr_floor = floor
+        if self.direction > 0:
+            if self.prev_floor > self.curr_floor:
+                self.direction *= -1
+        else:
+            if self.prev_floor < self.curr_floor:
+                self.direction *= -1
 
+    def get_arrival_time(self, floor_stop, end):
+        top_floor = 25 if self.is_top_elevator else 15
+        if floor_stop > end:
+            # passenger going down
+            if self.direction == -1:
+                # both elevator and passenger are going down
+                if self.curr_floor > floor_stop:
+                    # the elevator is passing by this passenger
+                    arrival_time = self.stop_time + \
+                        get_travel_time(self.curr_floor, end)
+                else:
+                    # the elevator isnt passing by this passenger
+                    arrival_time = self.stop_time + \
+                        get_travel_time(self.curr_floor, 0) + get_travel_time(0,
+                                                                              top_floor) + get_travel_time(top_floor, end)
+            else:
+                # elevator is going up, passenger is going down
+                arrival_time = self.stop_time + \
+                    get_travel_time(self.curr_floor, top_floor) + \
+                    get_travel_time(top_floor, end)
+        else:
+            # passenger going up
+            if self.direction == -1:
+                # passenger is going up, elevator is going down
+                arrival_time = self.stop_time + \
+                    get_travel_time(self.curr_floor, 0) + \
+                    get_travel_time(0, end)
+            else:
+                # passenger is going up, elevator is going up
+                if self.curr_floor > floor_stop:
+                    # is not passing by passenger
+                    arrival_time = self.stop_time + \
+                        get_travel_time(self.curr_floor, top_floor) + \
+                        get_travel_time(top_floor, 0) + get_travel_time(0, end)
+                else:
+                    arrival_time = self.stop_time + \
+                        get_travel_time(self.curr_floor, end)
+
+        return arrival_time  # return the elevator and time
+
+    def is_stuck(self):
+        return False
 
 #########################
 ##       Floors        ##
 #########################
+
+
 class Floor(object):
     def __init__(self):
         self.L = 0  # holds the line for this floor
@@ -208,11 +268,19 @@ def get_current_cumulative_rate_by_section(section):
 ## returns total travel time ##
 ###############################
 
+# TODO check if same section, and check if same direction
+
 
 def get_travel_time(start_floor, end_floor):
+    # TODO: keep in mind floors 15, 25, and 0
     elevator_start_time = 2
     elevator_stop_time = 2
-    return elevator_start_time + end_floor - start_floor + elevator_stop_time
+    # return elevator_start_time + end_floor - start_floor + elevator_stop_time
+    if start_floor < end_floor:
+        return (end_floor-start_floor) * 10
+    else:
+        return (start_floor-end_floor) * 10
+# returns if the start floor and end floor are in the same section
 
 
 def is_same_section(start_floor, end_floor):
@@ -238,6 +306,27 @@ def get_destination(end_floor):
     else:
         return np.random.randint(1, 16)
 
+
+def get_leaving_time(start, end):
+    # TODO test for room in elevator
+    if start <= 15:
+        # lower floors
+        time0 = elevator0.get_arrival_time(floor_stop=start, end=end)
+        time1 = elevator1.get_arrival_time(floor_stop=start, end=end)
+        if time1 > time0:
+            return time0, elevator0
+        else:
+            return time1, elevator1
+    else:
+        # upper floors
+        time2 = elevator2.get_arrival_time(floor_stop=start, end=end)
+        time3 = elevator3.get_arrival_time(floor_stop=start, end=end)
+        if time3 > time2:
+            return time2, elevator2
+        else:
+            return time3, elevator3
+
+
 #
 # def get_arrival_floor():
 #    rnd = np.random.rnd() # random number
@@ -247,46 +336,66 @@ def get_destination(end_floor):
  #   total_arrival = rate_section_0 + rate_section_1 + rate_section_2
 #   if rnd > rate_section_0 / total_arrival
 
-
 #######################################################################################
 #######################################################################################
 #######################################################################################
 # initialize simulation
-print('Spaceship Elevator')
 curr_time = 0
 P = []
 A = 0
 SIM_TIME = 14*60  # simulation time in minutes
-L = [0]*24  # initiate empty line in every floor
-passenger_counter = 0
+L = [0]*24  # initiate empty line in every floor # TODO delete this?
+passenger_count = 0
 
 ##### Create the Elevators #####
 ##### Lower-floors elevator ####
-elevator0 = Lower_floors_Elevator("Elevator1", 0)
-elevator1 = Lower_floors_Elevator("Elevator2", 0)
+# TODO change to regular elevator?
+elevator0 = Elevator("Elevator1", 0, False)
+elevator1 = Elevator("Elevator2", 0, False)
 #### Higher-floors elevator ####
-elevator2 = Upper_floors_Elevator("Elevator3", 0)
-elevator3 = Upper_floors_Elevator("Elevator4", 0)
+elevator2 = Elevator("Elevator3", 0, True)
+elevator3 = Elevator("Elevator4", 0, True)
 # all elevators
 elevators = [elevator0, elevator1, elevator2, elevator3]
+bottom_elevators = [elevator0, elevator1]
+top_elevators = [elevator2, elevator3]
 ##### Create the Floors ######
 floors = [Floor()] * 26
 
+
+##################################################################################
+################################## Initialize ####################################
+##################################################################################
 # initiate first arrival for each floor
 # each floor has a person traveling to one of the 3 floor-groups
 for floor_number in range(1, 26):
-    Event(np.random.exponential(get_current_rate_by_floor(
-        floor_number, 0)), "arriving")  # GROUP 1
-    Event(np.random.exponential(get_current_rate_by_floor(
-        floor_number, 15)), "arriving")  # GROUP 2
-    Event(np.random.exponential(get_current_rate_by_floor(
-        floor_number, 25)), "arriving")  # GROUP 3
+    time1 = np.random.exponential(get_current_rate_by_floor(floor_number, 0))
+    time2 = np.random.exponential(get_current_rate_by_floor(floor_number, 15))
+    time3 = np.random.exponential(get_current_rate_by_floor(floor_number, 25))
 
-Event(np.random.exponential(get_current_rate_by_floor(0, 15)), "arriving")  # GROUP 2
-Event(np.random.exponential(get_current_rate_by_floor(0, 25)), "arriving")  # GROUP 3
+    new_passenger1 = Passenger(arrival_time=time1, destination=get_destination(
+        0), start_floor=floor_number)
+    new_passenger2 = Passenger(arrival_time=time2, destination=get_destination(
+        15), start_floor=floor_number)
+    new_passenger3 = Passenger(arrival_time=time3, destination=get_destination(
+        25), start_floor=floor_number)
+
+    Event(time1, "arriving", new_passenger1)  # GROUP 1
+    Event(time2, "arriving", new_passenger2)  # GROUP 2
+    Event(time3, "arriving", new_passenger3)  # GROUP 3
+
+# initiate passengers from zero floor
+time2 = np.random.exponential(get_current_rate_by_floor(0, 15))
+time3 = np.random.exponential(get_current_rate_by_floor(0, 25))
+new_passenger2 = Passenger(
+    arrival_time=time2, destination=get_destination(15), start_floor=0)
+new_passenger3 = Passenger(
+    arrival_time=time3, destination=get_destination(25), start_floor=0)
+Event(time2, "arriving", new_passenger2)  # GROUP 2
+Event(time3, "arriving", new_passenger3)  # GROUP 3
 
 #######################################################################################
-#######################################################################################
+###################################### Loop ###########################################
 #######################################################################################
 #####################
 ## simulation loop ##
@@ -297,25 +406,50 @@ while curr_time < SIM_TIME:  # LOOP stops when time ends
     prev_time = curr_time  # time of last event
     curr_time = event.time  # current event's time
 
+    #################################
+    ##########  ARRIVE  #############
+    #################################
     if event.eventType == "arriving":
-        passenger_counter += 1
-        new_passenger = Passenger(arrival_time=curr_time, destination=get_destination(
-            event.passenger.destination), id=passenger_counter, start_floor=event.passenger.start_floor)
+        passenger = event.passenger
+        # test what is the first elevator to come
+        time, elevator = get_leaving_time(
+            start=passenger.start_floor, end=passenger.destination)
+        if time > 15*60:
+            # no more patience, customer is taking the stairs
+            Event(time=curr.time + 15*60, eventType="stairs",
+                  passenger=passenger)
+        elif passenger.is_traveler:
+            # passenger is going to floor 0, for a 2-part journey
+            Event(time=time, eventType="journey",
+                  passenger=passenger, elevator=elevator)
+        else:
+            # passenger is prepared to leave the system at this time
+            Event(time=time, eventType="leaving",
+                  passenger=passenger, elevator=elevator)
+        # Create next arrival, based on the last passenger on the same floor
+        # random floor in same section
+        new_pass_dest = get_destination(passenger.destination)
+        new_passenger = Passenger(
+            arrival_time=curr_time, destination=new_pass_dest, start_floor=passenger.start_floor)
+        Event(time=time, eventType="arriving",
+              passenger=new_passenger, elevator=elevator)
 
-        if theater.available[movie] > 0:
-            i += 1
-            theater.L += 1
-            people_in.append(theater.L)
-            time.append(curr_time)
-            if A == 0:
-                A = 1
-                Event(curr_time + 1, "buy_tickets", new_customer)
-            else:
-                heapq.heappush(line, (new_customer.arrival_time, new_customer))
-            Event(curr_time + new_customer.patience,
-                  "out_of_patience", new_customer)
-        Event(curr_time + np.random.exponential(1 / 2),
-              "arriving")  # create the next arrivel
+    elif event.eventType == "leaving":
+        # TODO:
+        # 1. check elevator broken (use elevator object to decide)
+        # 2. move elevator if not broken
+        # 3. clear passenger
+        elevator = event.elevator
+        passenger = event.passenger
+        if elevator.is_broken():
+            pass
+        elif elevator.will_
+    elif event.eventType == "journey":
+        pass
+    elif event.eventType == "replace":
+        pass
+    elif event.eventType == "stairs":
+        pass
 
     elif event.eventType == "buy_tickets":
         if event.customer.left == False:  # check if the customer left the queue
