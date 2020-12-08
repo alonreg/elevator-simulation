@@ -298,7 +298,7 @@ def is_same_section(start_floor, end_floor):
 # returns the destination according to the prior passenger
 
 
-def get_destination(end_floor):
+def get_random_destination(end_floor):
     if end_floor == 0:
         return 0
     elif end_floor > 15:
