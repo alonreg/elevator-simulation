@@ -65,6 +65,7 @@ class Passenger(object):
         # self.journey_started = False  # describes the current part of the journey. Either 1 or 2
         self.patience_left = 15*60  # 15 minutes patience
         self.left = False
+        self.started_using_sys = False
         if end > start:
             self.direction = -1
         else:
@@ -91,17 +92,22 @@ class Elevator(object):
         self.last_broken_time = -1  # time of last break
 
     # Gets the elevator destination. Checks if it was broken until arriving
+    def update_space(self):
+        self.remaining_space = self.max_capacity - len(self.passengers)
+        if self.remaining_space == 0:
+            print(" elevator" + str(self.id) +
+                  " full - no more space! at " + str(curr_time) + " floor " + str(self.curr_floor))
+            print(self.passengers[19].id)
 
     def move(self):
         self.stop_time = curr_time - 5  # last stopped before 5 sec
         self.prev_floor = self.curr_floor
         if self.is_top_elevator:
             if self.curr_floor == 16 and self.direction == -1:
-                self.curr_floor -= 16  # move the elevator past sector #1
+                self.curr_floor -= 15  # move the elevator past sector #1
             elif self.curr_floor == 0 and self.direction == 1:
-                self.curr_floor += 16  # move the elevator past sector #1
-        else:
-            self.curr_floor += self.direction
+                self.curr_floor += 15  # move the elevator past sector #1
+        self.curr_floor += self.direction
         if (self.curr_floor == 0 and self.direction == -1) or (self.curr_floor in [15, 25] and self.direction == 1):
             # if reached end of section, flip direction
             self.direction *= -1
@@ -143,6 +149,7 @@ class Elevator(object):
 
 
 ### TODO DELETE: ###
+
 
     def move_elevator(self, floor):  # move elevator according to plan
         self.stop_time = curr_time
@@ -256,10 +263,10 @@ passenger_count = 0
 ##### Create the Elevators #####
 ##### Lower-floors elevator ####
 elevator1 = Elevator("Elevator1", 0, 1, False)
-elevator2 = Elevator("Elevator2", 0, 1, False)
+elevator2 = Elevator("Elevator2", 15, -1, False)
 #### Higher-floors elevator ####
 elevator3 = Elevator("Elevator3", 0, 1, True)
-elevator4 = Elevator("Elevator4", 0, 1, True)
+elevator4 = Elevator("Elevator4", 25, -1, True)
 
 elevators = [Elevator(id=1, starting_floor=0, direction=1, top_floor=15), Elevator(id=2, starting_floor=0, direction=1, top_floor=15), Elevator(
     id=3, starting_floor=0, direction=1, top_floor=25), Elevator(id=4, starting_floor=0, direction=1, top_floor=25)]
@@ -300,6 +307,7 @@ while curr_time < SIM_TIME:  # loop until sim time ends
         new_time = curr_time + np.random.exponential(rate)
         new_passenger_end = get_rand_dest(passenger.end)
         new_passenger = Passenger(passenger.start, new_passenger_end, new_time)
+        passenger_count += 1
         Event(new_time, "arriving", passenger=new_passenger)
         # TODO you can also flip the order and create the passenger on event
     ##############
@@ -315,8 +323,7 @@ while curr_time < SIM_TIME:  # loop until sim time ends
             for j_passenger in journey_passengers:
                 # add journey passengers back to the line
                 # they always go up if in middle of journey
-                print(curr_time)
-                print(type(curr_time))
+                j_passenger.in_journey = False
                 heapq.heappush(L_up[elevator.curr_floor],
                                (curr_time - 5, id(j_passenger), j_passenger))
         for other_elevator in elevators:
@@ -329,19 +336,20 @@ while curr_time < SIM_TIME:  # loop until sim time ends
                         elevator.direction)
 
                     for p in released_from_broken:
+                        elevator.update_space()
                         if elevator.remaining_space > 0:
                             # both are going in the same direction
                             # passenger enters the elevator
                             # appends randomly
                             # TODO change to do this by order
+                            print("adding passenger " + str(p.id))
                             elevator.passengers.append(p)
+
         if did_break:
             # handle elevator broken
-            print(" elevator has broken ")
+            print(" elevator has broken " + str(curr_time))
             fix_time = curr_time + np.random.randint(5, 16) * 60
             Event(fix_time, "elevator_close", elevator=elevator)
-            # TODO TODO TODO make the passengers return to line to be first in line
-
             # if elevator is stuck, it won't be moving
         else:
             if elevator.direction == 1:
@@ -350,17 +358,19 @@ while curr_time < SIM_TIME:  # loop until sim time ends
                 waiting_passengers = L_down[elevator.curr_floor]
 
             while waiting_passengers:
+                print(waiting_passengers)
+                elevator.update_space()
                 if elevator.remaining_space > 0:
                     # both are going in the same direction
                     # passenger enters the elevator
                     next_in_line = heapq.heappop(waiting_passengers)[2]
+                    next_in_line.started_using_sys = True
                     elevator.passengers.append(next_in_line)
+                    print("adding passengerrr " + str(next_in_line.id))
                 else:
                     break  # stop inserting passengers to elevator, no room or no more passengers
             if (elevator.curr_floor == 16 and elevator.direction == -1) or (elevator.curr_floor == 0 and elevator.direction == 1 and elevator.is_top_elevator):
                 next_time = curr_time + get_travel_time(floors=16)
-                print("time from floor zero to floor 16 is:" +
-                      str(get_travel_time(floors=16)))
             else:
                 next_time = curr_time + get_travel_time(floors=1)
             # if not broken, move as scheduled to next floor
@@ -377,13 +387,14 @@ while curr_time < SIM_TIME:  # loop until sim time ends
     ## out_of_patience ##
     elif event.eventType == "out_of_patience":
         passenger = event.passenger
-        if passenger.left is False:
+        if passenger.left is False and passenger.started_using_sys is False:
+            print("out of patience at: " + str(curr_time))
             passenger.left = True
             # will always be next passenger
             if passenger.direction == 1:
-                heapq.heappop(L_up[passenger.curr_floor])
+                heapq.heappop(L_up[passenger.start])
             else:
-                heapq.heappop(L_down[passenger.curr_floor])
+                heapq.heappop(L_down[passenger.start])
             # L[passenger.curr_floor].remove((passenger))
             # heapq.heappush(L[passenger.curr_floor],
             #                  (curr_time - 5, j_passenger))
