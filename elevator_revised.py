@@ -73,8 +73,8 @@ class Passenger(object):
         if self.id == 16:
             print("my name is 16, and my destination is " +
                   str(self.end) + " start: " + str(self.start) + "curr time " + str(self.arrival_time))
-        if self.id == 823:
-            print("my name is 823, and my destination is " +
+        if self.id == 511:
+            print("my name is 511, and my destination is " +
                   str(self.end) + " start: " + str(self.start) + "curr time " + str(self.arrival_time))
 
 
@@ -131,16 +131,18 @@ class Elevator(object):
     def switch_direction(self):
         self.direction *= -1
 
-    # removes leaving passengers and
+    # removes leaving passengers and returns journey passengers
     def release_passengers(self):
         leaving_passengers = list(
             [p for p in self.passengers if self.curr_floor == p.end])  # for visualization
+        for p in leaving_passengers:
+            service_time.append(curr_time - p.arrival_time)
+
         journey_passengers = []
         if self.curr_floor == 0:
             # journey passengers are saved in the system
             journey_passengers = list(
                 [p for p in self.passengers if p.in_journey])
-
             self.passengers = list(
                 [p for p in self.passengers if self.curr_floor != p.end and not p.in_journey])
         else:
@@ -149,8 +151,9 @@ class Elevator(object):
                 [p for p in self.passengers if self.curr_floor != p.end])
         return journey_passengers
 
-     # removes leaving passengers and
+     # removes passengers in the broken elevator to the other elevator
     def release_when_broken(self, direction):
+        # release only passengers that go to the same direction as the rescue elevator
         released = list(
             [p for p in self.passengers if self.direction == direction])
         self.passengers = list(
@@ -261,7 +264,9 @@ def get_travel_time(floors):
 
 
 #### Performance Measures ####
+service_time = []  # for visualization - service time for each passenger
 avg_service = []  # for visualization - avg service duration
+avg_out_out_patience = [0]*14
 ##############################
 
 
@@ -270,7 +275,7 @@ for i in range(2):
     ######### INITIATE ###########
     # initialize simulation
     curr_time = 0  # current time
-    SIM_TIME = 60*60*14  # 14*60*60  # simulation time in minutes
+    SIM_TIME = 6000  # 14*60*60  # simulation time in minutes
 
     P = []  # heap
     L_up = [[]]*26  # going up line in every floor
@@ -326,8 +331,7 @@ for i in range(2):
             new_passenger = Passenger(passenger.start, passenger.end, new_time)
             passenger_count += 1
             Event(new_time, "arriving", passenger=new_passenger)
-            # TODO you can also flip the order and create the passenger on event
-        ##############
+            ##############
 
         ## elevator_close ##
         elif event.eventType == "elevator_close":
@@ -373,18 +377,25 @@ for i in range(2):
                 fix_time = curr_time + np.random.uniform(5, 15)*60
                 Event(fix_time, "elevator_close", elevator=elevator)
                 # if elevator is stuck, it won't be moving
-            else:
-                if elevator.direction == 1:
+            else:  # not stuck
+                if elevator.direction == 1:  # list of customers in line
                     waiting_passengers = L_up[elevator.curr_floor]
                 else:
                     waiting_passengers = L_down[elevator.curr_floor]
 
                 while waiting_passengers:
+                    for p in waiting_passengers:
+                        for f in waiting_passengers:
+                            if p[2].id == f[2].id and p[2].end != f[2].end:
+                                print(' found a duplicate - :', curr_time,
+                                      p[2].id, f[2].id)
                     elevator.update_space()
                     if elevator.remaining_space > 0:
                         # both are going in the same direction
                         # passenger enters the elevator
+                        # returns the passenger from tuple
                         next_in_line = heapq.heappop(waiting_passengers)[2]
+                        # passengers started using the elevators and wont run out of patience
                         next_in_line.started_using_sys = True
                         elevator.passengers.append(next_in_line)
                         #print("adding passengerrr " + str(next_in_line.id))
@@ -398,13 +409,6 @@ for i in range(2):
                 Event(next_time, "elevator_close", elevator=elevator)
                 elevator.move()  # moves elevator to next floor + open + close doors
 
-            ##############
-
-            ## arriving ##
-        # elif event.eventType == "elevator_fixed":
-        #    pass
-        ##############
-
         ## out_of_patience ##
         elif event.eventType == "out_of_patience":
             passenger = event.passenger
@@ -413,17 +417,15 @@ for i in range(2):
                 passenger.left = True
                 # will always be next passenger
                 if passenger.direction == 1:
-                    heapq.heappop(L_up[passenger.start])
+                    for p_tuple in L_up[passenger.start]:
+                        if p_tuple[2] == passenger:
+                            L_up[passenger.start].remove(p_tuple)
+                    heapq.heapify(L_up[passenger.start])
                 else:
-                    heapq.heappop(L_down[passenger.start])
-                # L[passenger.curr_floor].remove((passenger))
-                # heapq.heappush(L[passenger.curr_floor],
-                #                  (curr_time - 5, j_passenger))
-
-                # TODO num_leavers[movie] += 1
-                # theater.L -=1
-                # people_in.append(theater.L)
-                # time.append(curr_time)
+                    for p_tuple in L_down[passenger.start]:
+                        if p_tuple[2] == passenger:
+                            L_down[passenger.start].remove(p_tuple)
+                    heapq.heapify(L_down[passenger.start])
             ##############
 
 
@@ -432,3 +434,4 @@ for i in range(2):
 # תוחלת מספר המשתמשים הנוטשים את המערכת
 
 # התפלגות תפוסת המעליות - כמה משתמשים נמצאים על כל מעלית
+print(service_time)
