@@ -59,23 +59,22 @@ class Passenger(object):
         self.start = start
         self.end = end
         self.arrival_time = arrival_time  # time of first arrival
-        #self.current_floor = floor
+        # self.current_floor = floor
         self.in_journey = (start != 0 and end != 0) and ((
             start > 15 and end <= 15) or (start <= 15 and end > 15))
         # self.journey_started = False  # describes the current part of the journey. Either 1 or 2
-        self.patience_left = 15*60  # 15 minutes patience
         self.left = False
         self.started_using_sys = False
-        if end > start:
-            self.direction = 1
-        else:
+        if self.in_journey:
+            # in journey
+            # always going down firt to floor 0
             self.direction = -1
-        if self.id == 16:
-            print("my name is 16, and my destination is " +
-                  str(self.end) + " start: " + str(self.start) + "curr time " + str(self.arrival_time))
-        if self.id == 511:
-            print("my name is 511, and my destination is " +
-                  str(self.end) + " start: " + str(self.start) + "curr time " + str(self.arrival_time))
+        else:
+            # not in journey
+            if end > start:
+                self.direction = 1
+            else:
+                self.direction = -1
 
 
 class Elevator(object):
@@ -83,9 +82,9 @@ class Elevator(object):
         self.id = id
         self.curr_floor = starting_floor
         self.prev_floor = starting_floor
-        self.stop_time = 0  # last stop time
+        self.stop_time = curr_time  # last stop time
         self.passengers = []
-        self.max_capacity = 20
+        self.max_capacity = 15
         self.remaining_space = self.max_capacity - len(self.passengers)
         self.direction = direction  # up / down
         self.is_top_elevator = top_floor == 25
@@ -101,12 +100,12 @@ class Elevator(object):
     def update_space(self):
         self.remaining_space = self.max_capacity - len(self.passengers)
         if self.remaining_space == 0:
-            pass
-           # print(" elevator" + str(self.id) +
-            #      " full - no more space! at " + str(curr_time) + " floor " + str(self.curr_floor))
+            print(" elevator full at ", curr_time,
+                  "id", elevator.id, "floor", elevator.curr_floor)
+        print("space", self.remaining_space, "at floor",
+              self.curr_floor, "id", self.id)
 
     def move(self):
-        self.stop_time = curr_time - 5  # last stopped before 5 sec
         self.prev_floor = self.curr_floor
         if self.is_top_elevator:
             if self.curr_floor == 16 and self.direction == -1:
@@ -119,14 +118,22 @@ class Elevator(object):
             self.direction *= -1
 
     def did_break(self):
-        rnd = np.random.random()
-        if rnd < 0.0005:
-            print("elevator break: " + str(curr_time))
-            self.is_broken = True
-            self.last_broken_time = curr_time
-            return True
-        self.is_broken = False
-        return False
+        if self.is_broken:
+            # it's now fixed after being broken
+            self.is_broken = False
+            return False
+        else:
+            # elevator has been working until now
+            rnd = np.random.random()
+            if rnd < 0.0005:
+                # and now it broke
+                print("elevator break at: " + str(curr_time))
+                self.is_broken = True
+                self.last_broken_time = curr_time
+                return True
+            else:
+                # still not broken
+                return False
 
     def switch_direction(self):
         self.direction *= -1
@@ -135,6 +142,9 @@ class Elevator(object):
     def release_passengers(self):
         leaving_passengers = list(
             [p for p in self.passengers if self.curr_floor == p.end])  # for visualization
+        if self.curr_floor == 0:
+            print('leaving', "at:", curr_time, self.id, list(
+                map(lambda x: x.id, leaving_passengers)))
         for p in leaving_passengers:
             service_time.append(curr_time - p.arrival_time)
 
@@ -149,7 +159,7 @@ class Elevator(object):
             # create new passengers list with all the passengers that stay
             self.passengers = list(
                 [p for p in self.passengers if self.curr_floor != p.end])
-        return journey_passengers
+        return journey_passengers, leaving_passengers
 
      # removes passengers in the broken elevator to the other elevator
     def release_when_broken(self, direction):
@@ -160,69 +170,12 @@ class Elevator(object):
             [p for p in self.passengers if self.curr_floor != p.end and not self.direction == direction])
         return released
 
-
-### TODO DELETE: ###
-
-
-    def move_elevator(self, floor):  # move elevator according to plan
-        self.stop_time = curr_time
-        # if elevator hasn't been moven, return
-        if self.curr_floor == floor:
-            return
-        self.prev_floor = self.curr_floor
-        self.curr_floor = floor
-        if self.direction > 0:
-            if self.prev_floor > self.curr_floor:
-                self.direction *= -1
-        else:
-            if self.prev_floor < self.curr_floor:
-                self.direction *= -1
-
-    def get_arrival_time(self, floor_stop, end):
-        top_floor = 25 if self.is_top_elevator else 15
-        if floor_stop > end:
-            # passenger going down
-            if self.direction == -1:
-                # both elevator and passenger are going down
-                if self.curr_floor > floor_stop:
-                    # the elevator is passing by this passenger
-                    arrival_time = self.stop_time + \
-                        get_travel_time(self.curr_floor, end)
-                else:
-                    # the elevator isnt passing by this passenger
-                    arrival_time = self.stop_time + \
-                        get_travel_time(self.curr_floor, 0) + get_travel_time(0,
-                                                                              top_floor) + get_travel_time(top_floor, end)
-            else:
-                # elevator is going up, passenger is going down
-                arrival_time = self.stop_time + \
-                    get_travel_time(self.curr_floor, top_floor) + \
-                    get_travel_time(top_floor, end)
-        else:
-            # passenger going up
-            if self.direction == -1:
-                # passenger is going up, elevator is going down
-                arrival_time = self.stop_time + \
-                    get_travel_time(self.curr_floor, 0) + \
-                    get_travel_time(0, end)
-            else:
-                # passenger is going up, elevator is going up
-                if self.curr_floor > floor_stop:
-                    # is not passing by passenger
-                    arrival_time = self.stop_time + \
-                        get_travel_time(self.curr_floor, top_floor) + \
-                        get_travel_time(top_floor, 0) + get_travel_time(0, end)
-                else:
-                    arrival_time = self.stop_time + \
-                        get_travel_time(self.curr_floor, end)
-
-        return arrival_time  # return the elevator and time
-
-
 ######### FUNCTION ###########
 
 ## returns current rate ##
 ##########################
+
+
 def get_current_rate_by_floor(start_floor, end_floor):
     # get current arrival rate according to start floor,
     # destination, (or section) and curr_time(which would be determined
@@ -266,32 +219,26 @@ def get_travel_time(floors):
 #### Performance Measures ####
 service_time = []  # for visualization - service time for each passenger
 avg_service = []  # for visualization - avg service duration
-avg_out_out_patience = [0]*14
+avg_out_out_patience = [0]*100  # out of patience per day
+elevator_usage = [0]*15
 ##############################
 
 
-for i in range(2):
+for i in range(1):
 
     ######### INITIATE ###########
     # initialize simulation
     curr_time = 0  # current time
-    SIM_TIME = 6000  # 14*60*60  # simulation time in minutes
+    SIM_TIME = 14*60*60  # simulation time in minutes
 
     P = []  # heap
     L_up = [[]]*26  # going up line in every floor
     L_down = [[]]*26  # going down line in every floor
     passenger_count = 0
 
-    ##### Create the Elevators #####
-    ##### Lower-floors elevator ####
-    elevator1 = Elevator("Elevator1", 0, 1, False)
-    elevator2 = Elevator("Elevator2", 15, -1, False)
-    #### Higher-floors elevator ####
-    elevator3 = Elevator("Elevator3", 0, 1, True)
-    elevator4 = Elevator("Elevator4", 25, -1, True)
-
-    elevators = [Elevator(id=1, starting_floor=0, direction=1, top_floor=15), Elevator(id=2, starting_floor=0, direction=1, top_floor=15), Elevator(
-        id=3, starting_floor=0, direction=1, top_floor=25), Elevator(id=4, starting_floor=0, direction=1, top_floor=25)]
+    # create list of elevators
+    elevators = [Elevator(id=1, starting_floor=0, direction=1, top_floor=15), Elevator(id=2, starting_floor=15, direction=-1, top_floor=15), Elevator(
+        id=3, starting_floor=0, direction=1, top_floor=25), Elevator(id=4, starting_floor=25, direction=-1, top_floor=25)]
 
     for start in range(0, 26):
         for end in range(0, 26):
@@ -303,6 +250,7 @@ for i in range(2):
             Event(time, "arriving", passenger=new_passenger)
 
     for elevator in elevators:
+        # init elevators
         Event(curr_time + 5, "elevator_close", elevator=elevator)
 
     ######### LOOP ###########
@@ -310,7 +258,6 @@ for i in range(2):
         # print(passenger_count)
 
         event = heapq.heappop(P)  # get next event
-        prev_time = curr_time  # time of last event
         curr_time = event.time  # current event's time
 
         ## arriving ##
@@ -323,6 +270,9 @@ for i in range(2):
             else:
                 heapq.heappush(L_down[passenger.start],
                                (passenger.arrival_time, id(passenger), passenger))
+            print(" length of lines : ", "up", len(
+                L_up[passenger.start]), "down", len(
+                L_down[passenger.start]), "at floor", passenger.start, "at ", curr_time)
             # check if he will be out of patience
             Event(curr_time + 15*60, "out_of_patience", passenger)
             # generate next passenger
@@ -336,17 +286,22 @@ for i in range(2):
         ## elevator_close ##
         elif event.eventType == "elevator_close":
             elevator = event.elevator
-            did_break = elevator.did_break()
+            #prev_stop_time = elevator.stop_time
+            #elevator.stop_time = curr_time
+            #elevator_usage[elevator.id][len(elevator.passengers)] += curr_time - prev_stop_time
+            is_broken = elevator.did_break()
             # passengers with this destination are free to go, returns journey passengers in floor 0
-            journey_passengers = elevator.release_passengers()
+            journey_passengers, released_passengers = elevator.release_passengers()
             if elevator.curr_floor == 0:
                 # if in floor 0, add journey passengers to queue
                 for j_passenger in journey_passengers:
                     # add journey passengers back to the line
                     # they always go up if in middle of journey
                     j_passenger.in_journey = False
+                    j_passenger.direction = 1
                     heapq.heappush(L_up[elevator.curr_floor],
                                    (curr_time - 5, id(j_passenger), j_passenger))
+            # pull passengers from broken elevator
             for other_elevator in elevators:
                 if other_elevator != elevator and other_elevator.top_floor == elevator.top_floor:
                     if other_elevator.is_broken and other_elevator.curr_floor == elevator.curr_floor and other_elevator.direction == elevator.direction:
@@ -355,25 +310,20 @@ for i in range(2):
                         # therefore we will take any passenger we can with us
                         released_from_broken = other_elevator.release_when_broken(
                             elevator.direction)
-
                         result = map(lambda x: x.id, released_from_broken)
-                        print("print result borken")
-                        print(curr_time)
-                        print(passenger_count)
-                        print(list(result))
+                        print("print result broken", curr_time, list(result))
                         for p in released_from_broken:
                             elevator.update_space()
                             if elevator.remaining_space > 0:
                                 # both are going in the same direction
                                 # passenger enters the elevator
                                 # appends randomly
-                                # TODO change to do this by order
                                 print("adding passenger " + str(p.id))
                                 elevator.passengers.append(p)
 
-            if did_break:
+            if is_broken:
                 # handle elevator broken
-                #print(" elevator has broken " + str(curr_time))
+                print(" elevator is broken ", curr_time)
                 fix_time = curr_time + np.random.uniform(5, 15)*60
                 Event(fix_time, "elevator_close", elevator=elevator)
                 # if elevator is stuck, it won't be moving
@@ -382,7 +332,6 @@ for i in range(2):
                     waiting_passengers = L_up[elevator.curr_floor]
                 else:
                     waiting_passengers = L_down[elevator.curr_floor]
-
                 while waiting_passengers:
                     for p in waiting_passengers:
                         for f in waiting_passengers:
@@ -395,10 +344,13 @@ for i in range(2):
                         # passenger enters the elevator
                         # returns the passenger from tuple
                         next_in_line = heapq.heappop(waiting_passengers)[2]
+                        print("passenger ", next_in_line.id, "enters", )
                         # passengers started using the elevators and wont run out of patience
                         next_in_line.started_using_sys = True
                         elevator.passengers.append(next_in_line)
-                        #print("adding passengerrr " + str(next_in_line.id))
+                        if elevator.id == 2:
+                            print(list(map(lambda x: x.id, elevator.passengers)))
+                        # print("adding passengerrr " + str(next_in_line.id))
                     else:
                         break  # stop inserting passengers to elevator, no room or no more passengers
                 if (elevator.curr_floor == 16 and elevator.direction == -1) or (elevator.curr_floor == 0 and elevator.direction == 1 and elevator.is_top_elevator):
@@ -426,7 +378,10 @@ for i in range(2):
                         if p_tuple[2] == passenger:
                             L_down[passenger.start].remove(p_tuple)
                     heapq.heapify(L_down[passenger.start])
-            ##############
+                avg_out_out_patience[i] += 1  # for visualization
+    print(passenger_count)
+
+    ##############
 
 
 # התפלגות משך שירות המשתמשים
@@ -434,4 +389,4 @@ for i in range(2):
 # תוחלת מספר המשתמשים הנוטשים את המערכת
 
 # התפלגות תפוסת המעליות - כמה משתמשים נמצאים על כל מעלית
-print(service_time)
+print(len(service_time))
