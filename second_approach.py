@@ -102,6 +102,22 @@ class Elevator(object):
 
     def move(self):
         self.prev_floor = self.curr_floor
+
+        if is_evening():
+            if self.id == 1 and self.curr_floor == 0:
+                self.direction == -1
+                self.curr_floor == 15
+                return
+            elif self.id == 3 and self.curr_floor == 0:
+                self.direction == -1
+                self.curr_floor == 25
+                return
+        elif is_morning():
+            if (self.id == 1 and self.curr_floor == 15) or (self.id == 3 and self.curr_floor == 25):
+                self.direction == 1
+                self.curr_floor == 0
+                return
+
         if self.is_top_elevator:
             if self.curr_floor == 16 and self.direction == -1:
                 self.curr_floor -= 15  # move the elevator past sector #1
@@ -193,6 +209,20 @@ def get_current_rate_by_floor(start_floor, end_floor):
     rate = arrival_rates[start_floor_section][end_floor_section][hour_range]
     # Convert to exponential rate
     return (60*60)/rate
+
+# return if morning rush hour
+
+
+def is_morning():
+    return curr_time >= 60*60 and curr_time < 4*60*60
+    # 07:00-10:00
+
+# return if evening rush hour
+
+
+def is_evening():
+    return curr_time >= 9*60*60 and curr_time < 12*60*60
+    # 15:00-18:00
 
 
 def get_travel_time(floors):
@@ -339,14 +369,28 @@ for i in range(1):
                         elevator.passengers.append(next_in_line)
                     else:
                         break  # stop inserting passengers to elevator, no room or no more passengers
+                elevator.stop_time = curr_time
                 if (elevator.curr_floor == 16 and elevator.direction == -1) or (elevator.curr_floor == 0 and elevator.direction == 1 and elevator.is_top_elevator):
                     next_time = curr_time + get_travel_time(floors=16)
                 else:
                     next_time = curr_time + get_travel_time(floors=1)
                 # if not broken, move as scheduled to next floor
-                Event(next_time, "elevator_close", elevator=elevator)
-                elevator.stop_time = curr_time
-                elevator.move()  # moves elevator to next floor + open + close doors
+
+                if is_evening() and ((elevator.id == 1 and elevator.curr_floor == 0) or (elevator.id == 3 and elevator.curr_floor == 0)):
+                    if elevator.id == 1 and elevator.curr_floor == 0:
+                        elevator.direction == -1
+                        elevator.curr_floor == 15
+
+                    elif elevator.id == 3 and elevator.curr_floor == 0:
+                        elevator.direction == -1
+                        elevator.curr_floor == 25
+
+                elif is_morning() and ((elevator.id == 1 and elevator.curr_floor == 15) or (elevator.id == 3 and elevator.curr_floor == 25)):
+                    elevator.direction == 1
+                    elevator.curr_floor == 0
+                else:
+                    Event(next_time, "elevator_close", elevator=elevator)
+                    elevator.move()  # moves elevator to next floor + open + close doors
 
         ## out_of_patience ##
         elif event.eventType == "out_of_patience":
