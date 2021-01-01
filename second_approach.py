@@ -8,7 +8,7 @@ from matplotlib.pylab import plot, show, bar
 import matplotlib.pyplot as plt
 plt.style.use("ggplot")
 df = pd.read_csv('arrival_rates.csv')
-df  # TODO: what is this?
+df
 floors_num = 25
 arrival_rates_by_floor_section = [
     [18, 10.8, 40.8], [50, 6.8, 12.8], [11, 4.8, 7.8]]
@@ -274,8 +274,6 @@ for i in range(1):
 
     ######### LOOP ###########
     while curr_time < SIM_TIME:  # loop until sim time ends
-        # print(passenger_count)
-
         event = heapq.heappop(P)  # get next event
         curr_time = event.time  # current event's time
 
@@ -344,7 +342,6 @@ for i in range(1):
 
             if is_broken:
                 # handle elevator broken
-                print(" elevator is broken ", curr_time)
                 fix_time = curr_time + np.random.uniform(5, 15)*60
                 Event(fix_time, "elevator_close", elevator=elevator)
                 # if elevator is stuck, it won't be moving
@@ -420,5 +417,3 @@ for i in range(1):
                 avg_out_of_patience[i] += 1  # for visualization
                 service_time.append(curr_time - passenger.arrival_time)
     ##############
-
-print(elevator_usage)
