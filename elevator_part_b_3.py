@@ -224,11 +224,17 @@ for i in range(1):
     # at floor zero we have 2 seperate lines for the 2 pairs of elevator
     L_up[0] = [[], []]
     L_down = [[] for _ in range(26)]  # going down line in every floor
+
     passenger_count = 0
 
+    elevators_policy = [[[14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0], [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]], [
+        [24, 23, 22, 21, 20, 19, 18, 17, 16, 0], [24, 23, 22, 21, 20, 19, 18, 17, 16, 0]], [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]], [
+        [16, 17, 18, 19, 20, 21, 22, 23, 24, 25], [16, 17, 18, 19, 20, 21, 22, 23, 24, 25]]]
+    [[[1 down], [2 down], [3 down], [4 down]], [[1 up], [2 up], [3 up], [4 up]]]
+
     # create list of elevators
-    elevators = [Elevator(id=1, starting_floor=0, direction=1, top_floor=15), Elevator(id=2, starting_floor=15, direction=-1, top_floor=15), Elevator(
-        id=3, starting_floor=0, direction=1, top_floor=25), Elevator(id=4, starting_floor=25, direction=-1, top_floor=25)]
+    elevators = [Elevator(id=1), Elevator(id=2), Elevator(
+        id=3), Elevator(id=4)]
 
     for start in range(0, 26):
         for end in range(0, 26):
@@ -373,3 +379,7 @@ for i in range(1):
                 avg_out_of_patience[i] += 1  # for visualization
                 service_time.append(curr_time - passenger.arrival_time)
     ##############
+
+print(service_time)
+print(avg_out_of_patience)
+print(elevator_usage)
